@@ -9,7 +9,7 @@
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <errno.h>
-
+#define BUFFER_SIZE 1024
 void error(char *msg)
 {
     perror(msg);
@@ -34,13 +34,14 @@ int main(int argc, char *argv[])
     portno = atoi(strchr(argv[1], ':') + 1);
     char server_ip[256];
     strncpy(server_ip, argv[1], strchr(argv[1], ':') - argv[1]);
+    server_ip[strchr(argv[1], ':') - argv[1]] = '\0';
     server = gethostbyname(server_ip);
 
     if (server == NULL)
     {
         fprintf(stderr, "ERROR, no such host\n");
         exit(1);
-    } 
+    }
 
     bzero((char *)&serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
@@ -53,16 +54,6 @@ int main(int argc, char *argv[])
     int num_Errors = 0;
     int numTimeouts = 0;
 
-//if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-       // error("ERROR connecting to server");
-
-    //n = write(sockfd, &loopNum, sizeof(int));
-    //if (n < 0)
-    //{
-      //  fprintf(stderr, "ERROR writing to socket");
-        //num_Errors++;
-    //}
-
     // Read source code from file
     struct timeval Tsend, Trecv;
 
@@ -70,29 +61,29 @@ int main(int argc, char *argv[])
     gettimeofday(&Tstart, NULL); // Get the time before starting the loop
     for (int i = 0; i < loopNum; i++)
     {
-	    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	    if (sockfd < 0)
-		    error("ERROR opening socket");
-	    struct timeval timeout;
-    timeout.tv_sec = atoi(argv[5]); // Timeout in seconds
-    timeout.tv_usec = 0;
+        sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sockfd < 0)
+            error("ERROR opening socket");
+        struct timeval timeout;
+        timeout.tv_sec = atoi(argv[5]); // Timeout in seconds
+        timeout.tv_usec = 0;
 
-    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
-        error("ERROR setting socket option");
+        if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+            error("ERROR setting socket option");
 
-    if (setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
-        error("ERROR setting socket option");
-	    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-		    error("ERROR connecting to server");
+        if (setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+            error("ERROR setting socket option");
+        if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+            error("ERROR connecting to server");
         // Read source code from file
         FILE *source_file = fopen(argv[2], "r");
         if (source_file == NULL)
             error("ERROR opening source code file");
 
-        char buffer[256];
+        char buffer[BUFFER_SIZE];
 
         size_t bytes_read;
-        
+
         fseek(source_file, 0L, SEEK_END);
         int length = ftell(source_file);
         fseek(source_file, 0L, SEEK_SET);
@@ -111,8 +102,8 @@ int main(int argc, char *argv[])
         gettimeofday(&Tsend, NULL); // Get the time after sending the request
 
         // Data is available for reading, proceed to read and print response
-        bzero(buffer, 256);
-        n = read(sockfd, buffer, 255);
+        bzero(buffer, BUFFER_SIZE);
+        n = read(sockfd, buffer, BUFFER_SIZE -1);
 
         if (n <= 0)
         {
@@ -120,12 +111,6 @@ int main(int argc, char *argv[])
             {
                 fprintf(stderr, "Timeout occurred\n");
                 numTimeouts++;
-                // int n = write(sockfd, "Timeout\n",8);
-                // if (n < 0)
-                // {
-                //     fprintf(stderr, "ERROR writing to socket");
-                //     num_Errors++;
-                // }
                 continue;
             }
             else
@@ -135,7 +120,7 @@ int main(int argc, char *argv[])
                 continue;
             }
         }
-	close(sockfd);
+        close(sockfd);
 
         printf("-->%s\n", buffer);
 
