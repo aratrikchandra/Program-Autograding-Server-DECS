@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Read the CSV file
-data = pd.read_csv('result/experiment_results.csv')
+data = pd.read_csv('result/results.csv')
 
 # Plot Throughput vs Clients
 plt.figure(figsize=(10, 5))
@@ -57,26 +57,6 @@ plt.xlabel('Clients')
 plt.ylabel('RequestSentRate')
 plt.grid(True)
 plt.savefig('result/RequestSentRate_vs_Clients.pdf')
-
-
-# Plot avg_cpu_utilization_% vs Clients
-plt.figure(figsize=(10, 5))
-plt.plot(data['Clients'], data['avg_cpu_utilization_%'], marker='o', color='r')
-plt.title('avg_cpu_utilization_% vs Clients')
-plt.xlabel('Clients')
-plt.ylabel('avg_cpu_utilization_%')
-plt.grid(True)
-plt.savefig('result/avg_cpu_utilization_%_vs_Clients.pdf')
-
-
-# Plot avg_cpu_utilization_% vs Clients
-plt.figure(figsize=(10, 5))
-plt.plot(data['Clients'], data['avg_active_threads'], marker='o', color='r')
-plt.title('avg_active_threads vs Clients')
-plt.xlabel('Clients')
-plt.ylabel('avg_active_threads')
-plt.grid(True)
-plt.savefig('result/avg_active_threads_vs_Clients.pdf')
 
 print("The plots have been saved as 'results' directory")
 
