@@ -18,12 +18,12 @@ int min(int a, int b)
     return a < b ? a : b;
 }
 // Function to compile and execute the submitted code
-int compileAndExecute(int newsockfd)
+int compileAndExecute(int newsockfd, int tid)
 {
 
     // Compile the code
     char command1[100];
-    sprintf(command1, "gcc -o client%d/temp client%d/temp.c 2> client%d/compile_error.txt", newsockfd, newsockfd, newsockfd);
+    sprintf(command1, "gcc -o client%d/temp client%d/temp.c 2> client%d/compile_error.txt", tid, tid, tid);
     int compileStatus = system(command1);
 
     if (compileStatus != 0)
@@ -33,7 +33,7 @@ int compileAndExecute(int newsockfd)
 
     // Execute the compiled code
     char command2[100];
-    sprintf(command2, "./client%d/temp > client%d/program_output.txt 2> client%d/runtime_error.txt", newsockfd, newsockfd, newsockfd);
+    sprintf(command2, "./client%d/temp > client%d/program_output.txt 2> client%d/runtime_error.txt", tid, tid, tid);
     int executionStatus = system(command2);
 
     if (executionStatus != 0)
@@ -43,7 +43,7 @@ int compileAndExecute(int newsockfd)
 
     // Read the program's output
     char outputfilepath[50];
-    sprintf(outputfilepath, "client%d/program_output.txt", newsockfd);
+    sprintf(outputfilepath, "client%d/program_output.txt", tid);
     FILE *outputFile = fopen(outputfilepath, "r");
     if (outputFile == NULL)
     {
@@ -55,7 +55,7 @@ int compileAndExecute(int newsockfd)
     char desiredOutput[] = "1 2 3 4 5 6 7 8 9 10";
 
     char desiredfilepath[50];
-    sprintf(desiredfilepath, "client%d/desired_output.txt", newsockfd);
+    sprintf(desiredfilepath, "client%d/desired_output.txt", tid);
     FILE *desiredFile = fopen(desiredfilepath, "w");
     if (desiredFile == NULL)
     {
@@ -78,7 +78,7 @@ int compileAndExecute(int newsockfd)
     {
         // Create a diff file to show the difference
         char command3[100];
-        sprintf(command3, "diff -u client%d/program_output.txt client%d/desired_output.txt > client%d/diff.txt", newsockfd, newsockfd, newsockfd);
+        sprintf(command3, "diff -u client%d/program_output.txt client%d/desired_output.txt > client%d/diff.txt", tid, tid, tid);
         int diffStatus = system(command3);
         return 3; // OUTPUT ERROR
     }
@@ -86,7 +86,7 @@ int compileAndExecute(int newsockfd)
     return 0; // PASS
 }
 
-void action(int result, int newsockfd, int n)
+void action(int result, int newsockfd, int n, int tid)
 {
     // Send response based on the result
     if (result == 0)
@@ -99,7 +99,7 @@ void action(int result, int newsockfd, int n)
         char compileErrorBuffer[256];
 
         char compilerfile[50];
-        sprintf(compilerfile, "client%d/compile_error.txt", newsockfd);
+        sprintf(compilerfile, "client%d/compile_error.txt", tid);
         FILE *compileErrorFile = fopen(compilerfile, "r");
         if (compileErrorFile != NULL)
         {
@@ -124,7 +124,7 @@ void action(int result, int newsockfd, int n)
         // Send runtime error details
         char runtimeErrorBuffer[256];
         char runtimefile[50];
-        sprintf(runtimefile, "client%d/runtime_error.txt", newsockfd);
+        sprintf(runtimefile, "client%d/runtime_error.txt", tid);
         FILE *runtimeErrorFile = fopen(runtimefile, "r");
         if (runtimeErrorFile != NULL)
         {
@@ -149,7 +149,7 @@ void action(int result, int newsockfd, int n)
         // Send output error details
         char diffBuffer[256];
         char difffile[50];
-        sprintf(difffile, "client%d/diff.txt", newsockfd);
+        sprintf(difffile, "client%d/diff.txt", tid);
         FILE *diffFile = fopen(difffile, "r");
         if (diffFile != NULL)
         {
@@ -181,7 +181,8 @@ void *handleclient(void *arg)
     char buffer[256];
     int n;
     char command1[50];
-    sprintf(command1, "mkdir -p client%d", newsockfd);
+    int tid=pthread_self();
+    sprintf(command1, "mkdir -p client%d", tid);
     system(command1);
 
         bzero(buffer, 256);
@@ -192,7 +193,7 @@ void *handleclient(void *arg)
             printf("2. error reading from socket");
         }
         char sourcefilepath[50];
-        sprintf(sourcefilepath, "client%d/temp.c", newsockfd);
+        sprintf(sourcefilepath, "client%d/temp.c", tid);
         FILE *sourceFile = fopen(sourcefilepath, "w");
         if (sourceFile == NULL)
         {
@@ -213,14 +214,14 @@ void *handleclient(void *arg)
         printf("-->Received source code\n");
         fclose(sourceFile);
         // Compile and execute the code
-        int result = compileAndExecute(newsockfd);
+        int result = compileAndExecute(newsockfd, tid);
 
-        action(result, newsockfd, n);
+        action(result, newsockfd, n, tid);
 
         // usleep(100000); // 0.1 second delay
     
     char command2[50];
-    sprintf(command2, "rm -r client%d", newsockfd);
+    sprintf(command2, "rm -r client%d", tid);
     system(command2);
 
     pthread_exit(NULL);
