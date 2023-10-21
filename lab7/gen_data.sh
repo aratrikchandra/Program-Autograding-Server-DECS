@@ -10,7 +10,7 @@ mkdir -p result
 # Create files to store the results
 echo "Clients,Throughput,ResponseTime" > "result/results.csv"
 # Run the load test for varying number of clients
-for ((numClients=1; numClients<=maxClients; numClients++))
+for ((numClients=10; numClients<=maxClients; numClients+=10))
 do
     echo "Running load test with $numClients clients..."
     output=$(./loadtest.sh $serverIPPort $sourceCodeFile $loopNum $sleepTimeSeconds $numClients)
