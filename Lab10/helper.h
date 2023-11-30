@@ -246,7 +246,7 @@ char *output_check_command(int id, char *outputFile) {
     memset(s, 0, sizeof(s));
 
     // Construct the command to echo the expected output and compare it with the actual output
-    sprintf(s, "echo '1 2 3 4 5 6 7 8 9 10' | diff -B -Z - %s", outputFile);
+    sprintf(s, "echo '1 2 3 4 5 6 7 8 9 10' | diff -B -Z - %s > output_diff%d.txt", outputFile, id);
 
     return s;
 }

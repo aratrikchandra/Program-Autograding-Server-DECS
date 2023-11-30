@@ -193,37 +193,25 @@ char *readStatusFromFile(int requestID)
 }
 
 // Function to read status from a status file
-char *readRemarksFromFile(char *statusID)
+char *readRemarksFromFile(char *statusID, int reqID)
 {
-    // Open the file in read mode
-    FILE *file = fopen("remarks.txt", "r");
-    if (file == NULL)
+	char *remarks = (char *) malloc(200 * sizeof(char));
+    if(strcmp(statusID, "0") == 0)
     {
-        error("Error opening file");
-        return NULL;
+	    sprintf(remarks,"Your grading request ID %d has been accepted. It is currently at  position <queuePos>  in the queue.",reqID);
+	    return remarks;
     }
-
-    // Search for the request ID in the file
-    char line[256]; // Adjust the size as needed
-    while (fgets(line, sizeof(line), file) != NULL)
+    else if(strcmp(statusID, "1")==0)
     {
-        // printf("Status :: %s", statusID);
-        char *token = strtok(line, ",");
-        // printf("Token 1 :: %s\n", token);
-        if (token != NULL && (strcmp(token, statusID) == 0))
-        {
-            // Found the request ID, retrieve the status
-            token = strtok(NULL, ",");
-            // printf("Token 2 :: %s", token);
-            char *remarks = strdup(token); // Dynamically allocate memory for the status
-            // remarks[strcspn(remarks, "\n")] = '\0';
-            fclose(file);
-            return remarks; // Return the dynamically allocated status
-        }
+	    sprintf(remarks, "Your grading request ID %d has been accepted and is currently being processed.", reqID);
+	    return remarks;
     }
-
+    else
+    {
+	    sprintf(remarks, "Your grading request ID %d processing is done, here are the results:",reqID);
+	    return remarks;
+    }
     // Request ID not found
-    fclose(file);
     return NULL; // Return NULL to indicate not found
 }
 
@@ -398,17 +386,17 @@ int checkStatusRequest(int clientSockFD)
     printf("The request ID is %d and status is: %s\n", requestID, status);
     if (status == NULL)
     {
-        n = send(clientSockFD, "INVALID REQUEST ID", 20, MSG_NOSIGNAL);
+        n = send(clientSockFD, "INVALID REQUEST ID", 18, MSG_NOSIGNAL);
     }
     else
     {
-        // char *remarks = readRemarksFromFile(status);
-        // printf("%s\n", remarks);
-        // n = send(clientSockFD, remarks, strlen(remarks), MSG_NOSIGNAL);
-        // if (n < 0)
-        // {
-        //     error("ERROR: SEND ERROR");
-        // }
+        char *remarks = readRemarksFromFile(status, requestID);
+        printf("%s\n", remarks);
+        n = send(clientSockFD, remarks, strlen(remarks), MSG_NOSIGNAL);
+        if (n < 0)
+        {
+            error("ERROR: SEND ERROR");
+        }
         printf("%s\n", status);
         if (strcmp(status, "2") == 0)
         {

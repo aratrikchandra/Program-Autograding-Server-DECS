@@ -127,12 +127,19 @@ void *workerThread(void *arguments)
         size_t bytes_read;
         while (true)
         {
-            bytes_read = read(sockfd, buffer, BUFFER_SIZE);
+            bytes_read = read(sockfd, buffer, BUFFER_SIZE-1);
             if (bytes_read <= 0)
                 break;
             write(STDOUT_FILENO, buffer, bytes_read);
             bzero(buffer, BUFFER_SIZE);
             printf("\n");
+	    sleep(1);
+	    bytes_read = read(sockfd, buffer, BUFFER_SIZE-1);
+	    if (bytes_read <=0)
+		    break;
+	    write(STDOUT_FILENO, buffer, bytes_read);
+	    bzero(buffer, BUFFER_SIZE);
+	    printf("\n");
         }
     }
 
