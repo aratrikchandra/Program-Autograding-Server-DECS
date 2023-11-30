@@ -109,21 +109,20 @@ void *workerThread(void *arguments)
 
     char *req_mode = args->arg1;
 
-    int flag;
-
     if (strcmp(req_mode, "new") == 0)
     {
-        flag = 0;
-        if (write(sockfd, &flag, sizeof(int)) < 0)
+        if (write(sockfd, "new", 3) < 0)
         {
             error("ERROR writing to socket");
         }
+        sleep(1);
         // Send new grading request
         if (send_file(sockfd, args->arg2) != 0)
         {
             close(sockfd);
             error("ERROR sending file");
         }
+        sleep(5);
         // Receive and print response
         size_t bytes_read;
         while (true)
@@ -139,17 +138,18 @@ void *workerThread(void *arguments)
 
     else if (strcmp(req_mode, "status") == 0)
     {
-        flag = 1;
-        if (write(sockfd, &flag, sizeof(int)) < 0)
+        if (write(sockfd, "status", 6) < 0)
         {
             error("ERROR writing to socket");
         }
+        sleep(1);
         // Send request to check the status of a previous grading request
-        strcpy(buffer, args->arg2);
-        if (write(sockfd, buffer, strlen(buffer)) < 0)
+        int reqID = atoi(args->arg2);
+        if (write(sockfd, &reqID, sizeof(int)) < 0)
         {
             error("ERROR writing to socket");
         }
+        sleep(5);
         bzero(buffer, BUFFER_SIZE);
         // Receive and print response
         size_t bytes_read;
@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
 
     // Assign values to the arguments
     args.arg1 = argv[1];
-    args.arg2 = argv[2];
+    args.arg2 = argv[3];
 
     pthread_t worker;
 
