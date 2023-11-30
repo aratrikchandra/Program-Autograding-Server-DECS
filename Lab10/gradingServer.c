@@ -25,6 +25,9 @@ pthread_mutex_t queueMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t queueNotEmpty = PTHREAD_COND_INITIALIZER;
 pthread_cond_t queueNotFull = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t fileLock = PTHREAD_MUTEX_INITIALIZER;
+
+
+
 void enqueueGradingRequest(int newsockfd)
 {
     pthread_mutex_lock(&queueMutex);
@@ -41,7 +44,8 @@ void enqueueGradingRequest(int newsockfd)
 }
 
 int dequeueGradingRequest()
-{
+{   
+    sleep(10);
     pthread_mutex_lock(&queueMutex);
     while (queueSize == 0)
     {
@@ -54,6 +58,17 @@ int dequeueGradingRequest()
     pthread_cond_signal(&queueNotFull);
     pthread_mutex_unlock(&queueMutex);
     return request;
+}
+
+// Queue Position Function
+int getQueuePos(int requestID){
+    int pos = -1;
+    for (int i = queueFront; i != queueRear; i = (i+1)%BUFFER_SIZE){
+        pos++;
+        if ( gradingQueue[i] == requestID){
+            return pos;
+        }
+    }
 }
 
 // Function to count and write queue size to a file
@@ -195,10 +210,12 @@ char *readStatusFromFile(int requestID)
 // Function to read status from a status file
 char *readRemarksFromFile(char *statusID, int reqID)
 {
+
 	char *remarks = (char *) malloc(200 * sizeof(char));
     if(strcmp(statusID, "0") == 0)
     {
-	    sprintf(remarks,"Your grading request ID %d has been accepted. It is currently at  position <queuePos>  in the queue.",reqID);
+        int queuePos = getQueuePos(reqID);
+	    sprintf(remarks,"Your grading request ID %d has been accepted. It is currently at  position %d  in the queue.",reqID, queuePos);
 	    return remarks;
     }
     else if(strcmp(statusID, "1")==0)
@@ -220,15 +237,17 @@ int faultTolerance()
     printf("RUNNING FAULT TOLERANCE ::\n");
     // Open the file in read mode
     FILE *file = fopen("request_status.csv", "r");
+
     if (file == NULL)
     {
         error("Error Opening file");
     }
     // Search for the request ID in the file
     char line[256]; // Adjust the size as needed
+    printf("\n\nQueue State:\n");
     while (fgets(line, sizeof(line), file) != NULL)
     {
-        // printf("%s\n", line);
+        printf("\nQueue content: %s\n", line);
         int requestID = atoi(strtok(line, ","));
         char *status = strtok(NULL, ",");
         // printf("%d :: %s\n", requestID, status);
@@ -242,6 +261,7 @@ int faultTolerance()
     printf("FAULT TOLERANCE DONE\n");
     return 0;
 }
+
 
 int grader(int requestID)
 {
@@ -309,7 +329,7 @@ void *handleClient(void *arg)
         pthread_mutex_unlock(&fileLock);
 
         if (grader(requestID) == 0)
-            printf("SUCCESS :: File Graded for Request ID = %d\n", requestID);
+            printf("\nSUCCESS :: File Graded for Request ID = %d\n", requestID);
         else
             printf("ERROR :: File Cannot Be Graded for Request ID = %d\n", requestID);
     }
@@ -364,20 +384,26 @@ int createNewRequest(int clientSockFD)
     n = writeStatusToFile(requestID, "0");
     pthread_mutex_unlock(&fileLock);
     if (n != 0)
-    {
-        error("ERROR :: File Write Error");
+    {   
+        close(clientSockFD);
+        error("ERROR :: File Write Error");        
     }
+    close(clientSockFD);
     return 0;
 }
 
-int checkStatusRequest(int clientSockFD)
+void *checkStatusRequest(void *arg)
 {
+    int clientSockFD= *((int *)arg);
+    // printf("\n in chk status, client sfd: %d", clientSockFD);
     int n;
     int requestID;
+    // sleep(1);
     n = recv(clientSockFD, &requestID, sizeof(requestID), 0);
     printf("Request id is %d\n", requestID);
     if (n < 0)
-    {
+    {   
+        close(clientSockFD);
         error("ERROR: RECV ERROR");
     }
     pthread_mutex_lock(&fileLock);
@@ -395,6 +421,7 @@ int checkStatusRequest(int clientSockFD)
         n = send(clientSockFD, remarks, strlen(remarks), MSG_NOSIGNAL);
         if (n < 0)
         {
+            close(clientSockFD);
             error("ERROR: SEND ERROR");
         }
         printf("%s\n", status);
@@ -420,19 +447,21 @@ int checkStatusRequest(int clientSockFD)
         {
             if (send(clientSockFD,"Program ran successfully", 23, 0) == -1)
             {
+                close(clientSockFD);
                 perror("Error sending file msg");
-                return -1;
+                return NULL;
             }
         }
     }
     if (n < 0)
     {
+        close(clientSockFD);
         error("ERROR: SEND ERROR");
     }
 
     printf("Status Returned for Client with FD = %d with Request ID = %d\n", clientSockFD, requestID);
-
-    return 0;
+    close(clientSockFD);
+    return NULL;
 }
 
 int getRequest(int clientSockFD)
@@ -452,8 +481,13 @@ int getRequest(int clientSockFD)
     else if (strcmp(buffer, "status") == 0)
     {
         printf("going to fetch requestID\n");
+        pthread_t thread;
+        printf("\nsfd: %d", clientSockFD);
         sleep(1);
-        return checkStatusRequest(clientSockFD);
+        int rc = pthread_create(&thread, NULL, checkStatusRequest, (void *)&clientSockFD);
+        assert(rc==0);
+        // pthread_detach(thread);
+        return 0;
     }
     return -1;
 }
@@ -499,10 +533,12 @@ int main(int argc, char *argv[])
     // Initialize Request Queue
     // int requestQueueSize = atoi(argv[3]);
     // initQueue(&requestQueue, requestQueueSize);
+    
+    system("touch request_status.csv");
 
-    // if(faultTolerance()<0){
-    //     error("ERROR :: While running fault tolerance");
-    // }
+    if(faultTolerance()<0){
+        error("ERROR :: While running fault tolerance");
+    }
 
     // Binding the server socket
     if (bind(serverSockFD, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0)
@@ -520,6 +556,7 @@ int main(int argc, char *argv[])
     // Create thread pool
     for (int i = 0; i < threadPoolSize; i++)
     {
+        // thread pool for handling new requests
         if (pthread_create(&threads[i], NULL, handleClient, NULL) != 0)
         {
             close(serverSockFD);
@@ -541,7 +578,7 @@ int main(int argc, char *argv[])
 
         getRequest(clientSockFD);
 
-        close(clientSockFD);
+        // close(clientSockFD);
     }
     close(serverSockFD);
 
