@@ -1,22 +1,22 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -pthread
-SRCDIR = src
-INCDIR = include
-BUILDDIR = build
-TARGET = server
+CFLAGS = -pthread
 
-SOURCES = $(wildcard $(SRCDIR)/*.c)
-OBJECTS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SOURCES))
+all: server
 
-$(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJECTS)
+server: main.o grading_queue.o compiler.o network.o
+	$(CC) $(CFLAGS) -o server main.o grading_queue.o compiler.o network.o
 
-$(BUILDDIR)/%.o: $(SRCDIR)/%.c
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I$(INCDIR) -c $< -o $@
+main.o: main.c grading_queue.h compiler.h network.h
+	$(CC) $(CFLAGS) -c main.c
+
+grading_queue.o: grading_queue.c grading_queue.h
+	$(CC) $(CFLAGS) -c grading_queue.c
+
+compiler.o: compiler.c compiler.h
+	$(CC) $(CFLAGS) -c compiler.c
+
+network.o: network.c network.h grading_queue.h compiler.h
+	$(CC) $(CFLAGS) -c network.c
 
 clean:
-	rm -rf $(BUILDDIR)
-	rm -f $(TARGET)
-
-.PHONY: clean
+	rm -f server main.o grading_queue.o compiler.o network.o
