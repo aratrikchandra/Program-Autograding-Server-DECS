@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include "helper.h"
+#include <time.h>
 // #include "helper/circular_queue.h"
 
 #define MAX_CLIENTS 100
@@ -16,7 +17,13 @@
 // Request Queue
 // CircularQueue requestQueue;
 
-int gradingQueue[BUFFER_SIZE];
+struct node {
+    int sockfd;
+    int requestID;
+};
+
+
+int gradingQueue[BUFFER_SIZE][2];
 int queueSize = 0;
 int queueFront = 0;
 int queueRear = 0;
@@ -26,9 +33,10 @@ pthread_cond_t queueNotEmpty = PTHREAD_COND_INITIALIZER;
 pthread_cond_t queueNotFull = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t fileLock = PTHREAD_MUTEX_INITIALIZER;
 
+int createNewRequest(int clientSockFD, int requestID);
 
 
-void enqueueGradingRequest(int newsockfd)
+void enqueueGradingRequest(int newsockfd, int requestID)
 {
     pthread_mutex_lock(&queueMutex);
     while (queueSize == BUFFER_SIZE)
@@ -36,36 +44,43 @@ void enqueueGradingRequest(int newsockfd)
         // Queue is full, wait for space
         pthread_cond_wait(&queueNotFull, &queueMutex);
     }
-    gradingQueue[queueRear] = newsockfd;
+    gradingQueue[queueRear][0] = newsockfd;
+    gradingQueue[queueRear][1] = requestID;
     queueRear = (queueRear + 1) % BUFFER_SIZE;
     queueSize++;
     pthread_cond_signal(&queueNotEmpty);
     pthread_mutex_unlock(&queueMutex);
 }
 
-int dequeueGradingRequest()
-{   
-    sleep(10);
+struct node dequeueGradingRequest()
+{   struct node data;
+    // sleep(10);
+    srand(time(NULL));  // Seed the random number generator
+    unsigned int microseconds = rand() % 1000000;  // Generate a random number between 0 and 999999
+    usleep(microseconds);
+    
     pthread_mutex_lock(&queueMutex);
     while (queueSize == 0)
     {
         // Queue is empty, wait for requests
         pthread_cond_wait(&queueNotEmpty, &queueMutex);
     }
-    int request = gradingQueue[queueFront];
+    data.sockfd = gradingQueue[queueFront][0];
+    data.requestID = gradingQueue[queueFront][1];
+    
     queueFront = (queueFront + 1) % BUFFER_SIZE;
     queueSize--;
     pthread_cond_signal(&queueNotFull);
     pthread_mutex_unlock(&queueMutex);
-    return request;
+    return data;
 }
 
 // Queue Position Function
 int getQueuePos(int requestID){
     int pos = -1;
-    for (int i = queueFront; i != queueRear; i = (i+1)%BUFFER_SIZE){
+    for (int i = queueFront; i != queueRear+1; i = (i+1)%BUFFER_SIZE){
         pos++;
-        if ( gradingQueue[i] == requestID){
+        if ( gradingQueue[i][1] == requestID){
             return pos;
         }
     }
@@ -86,7 +101,7 @@ void *countQueueSize(void *arg)
         int size = queueSize;
         fprintf(outputFile, "%d\n", size);
         fflush(outputFile); // Flush the file buffer to ensure data is written immediately
-        sleep(1);           // Sleep for 10 seconds
+        // sleep(1);           // Sleep for 10 seconds
     }
 }
 
@@ -247,14 +262,14 @@ int faultTolerance()
     printf("\n\nQueue State:\n");
     while (fgets(line, sizeof(line), file) != NULL)
     {
-        printf("\nQueue content: %s\n", line);
+        printf("\nQueue content: %s", line);
         int requestID = atoi(strtok(line, ","));
         char *status = strtok(NULL, ",");
         // printf("%d :: %s\n", requestID, status);
         status[strcspn(status, "\n")] = '\0';
         if ((strcmp(status, "0") == 0) || (strcmp(status, "1") == 0))
         {
-            enqueueGradingRequest(requestID);
+            enqueueGradingRequest(-1, requestID);
             printf("Request ID = %d, is Re-Added to Queue.\n", requestID);
         }
     }
@@ -318,11 +333,19 @@ int grader(int requestID)
 }
 
 void *handleClient(void *arg)
-{
+{   
     while (1)
     {
-        int requestID = dequeueGradingRequest();
-        printf("Request ID=%d is assigned a Thread\n", requestID);
+        struct node data = dequeueGradingRequest();
+        int requestID = data.requestID;
+        int sockfd = data.sockfd;
+        if (sockfd != -1){
+            createNewRequest(sockfd, requestID);
+            enqueueGradingRequest(-1, requestID);
+            continue;
+        }
+        
+        printf("Request ID = %d is assigned a Thread\n", requestID);
 
         pthread_mutex_lock(&fileLock);
         updateStatusToFile(requestID, "1");
@@ -353,9 +376,8 @@ int generateUniqueRequestID()
     return requestID;
 }
 
-int createNewRequest(int clientSockFD)
+int createNewRequest(int clientSockFD, int requestID)
 {
-    int requestID = generateUniqueRequestID();
     int n;
     char *programFileName = makeProgramFileName(requestID);
     if (recv_file(clientSockFD, programFileName) != 0)
@@ -369,7 +391,7 @@ int createNewRequest(int clientSockFD)
     if (n < 0)
         error("ERROR :: FILE SEND ERROR");
 
-    enqueueGradingRequest(requestID);
+    // enqueueGradingRequest(requestID, clientSockFD);
     printf("Client with FD = %d is given Request ID = %d\n", clientSockFD, requestID);
 
     char requestIDString[30];
@@ -470,23 +492,30 @@ int getRequest(int clientSockFD)
     bzero(buffer, BUFFER_SIZE);
     // new or status_check
     int n = recv(clientSockFD, buffer, BUFFER_SIZE, 0);
-    if (n < 0)
+    printf("\ngetrequest n: %d\n", n);
+    if (n <= 0){
+        printf("\n\nrecv nothing, but conn accepted");
         return -1;
+    }
     if (strcmp(buffer, "new") == 0)
     {
-        printf("going to create new request\n");
-        sleep(1);
-        return createNewRequest(clientSockFD);
+        printf("\ngoing to create new request\n");
+        // sleep(1);
+        // return createNewRequest(clientSockFD);
+
+        int requestID = generateUniqueRequestID();
+        enqueueGradingRequest(clientSockFD, requestID);
+        return 0;
     }
     else if (strcmp(buffer, "status") == 0)
     {
         printf("going to fetch requestID\n");
         pthread_t thread;
         printf("\nsfd: %d", clientSockFD);
-        sleep(1);
+        // sleep(1);
         int rc = pthread_create(&thread, NULL, checkStatusRequest, (void *)&clientSockFD);
         assert(rc==0);
-        // pthread_detach(thread);
+        pthread_detach(thread);
         return 0;
     }
     return -1;
@@ -548,7 +577,7 @@ int main(int argc, char *argv[])
     printf("Server is Live on Port :: %d\n", serverPortNo);
 
     // Listening to the server socket
-    if (listen(serverSockFD, MAX_CLIENTS) < 0)
+    if (listen(serverSockFD, SOMAXCONN) < 0)
     {
         error("ERROR :: Socket Listening Failed");
     }
@@ -577,10 +606,10 @@ int main(int argc, char *argv[])
         printf("Accepted Client Connection From %s with FD = %d\n", inet_ntoa(clientAddr.sin_addr), clientSockFD);
 
         getRequest(clientSockFD);
-
+        // sleep(1);
         // close(clientSockFD);
     }
-    close(serverSockFD);
+    // close(serverSockFD);
 
     return 0;
 }

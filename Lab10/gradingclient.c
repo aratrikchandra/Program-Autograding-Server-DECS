@@ -44,7 +44,7 @@ int send_file(int sockfd, char *file_path)
     // for finding file size in bytes
     fseek(file, 0L, SEEK_END);
     int file_size = ftell(file);
-    printf("File size is: %d\n", file_size);
+    // printf("File size is: %d\n", file_size);
 
     // Reset file descriptor to beginning of file
     fseek(file, 0L, SEEK_SET);
@@ -122,17 +122,18 @@ void *workerThread(void *arguments)
             close(sockfd);
             error("ERROR sending file");
         }
-        sleep(5);
+        sleep(1);
         // Receive and print response
         size_t bytes_read;
         while (true)
         {
-            bytes_read = read(sockfd, buffer, BUFFER_SIZE-1);
-            if (bytes_read <= 0)
-                break;
-            write(STDOUT_FILENO, buffer, bytes_read);
-            bzero(buffer, BUFFER_SIZE);
-            printf("\n");
+        bytes_read = read(sockfd, buffer, BUFFER_SIZE-1);
+        if (bytes_read <= 0)
+            break;
+        write(STDOUT_FILENO, buffer, bytes_read);
+        bzero(buffer, BUFFER_SIZE);
+        printf("\n");
+
 	    sleep(1);
 	    bytes_read = read(sockfd, buffer, BUFFER_SIZE-1);
 	    if (bytes_read <=0)
@@ -156,16 +157,19 @@ void *workerThread(void *arguments)
         {
             error("ERROR writing to socket");
         }
-        sleep(5);
+        sleep(1);
         bzero(buffer, BUFFER_SIZE);
         // Receive and print response
         size_t bytes_read;
         char buffer[BUFFER_SIZE];
+
+        /* handle large size requests in loop*/
         while (true)
         {
             bytes_read = read(sockfd, buffer, BUFFER_SIZE);
             if (bytes_read <= 0)
                 break;
+            
             write(STDOUT_FILENO, buffer, bytes_read);
             bzero(buffer, BUFFER_SIZE);
             printf("\n");

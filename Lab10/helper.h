@@ -49,7 +49,7 @@ int recv_file(int sockfd, char* file_path)
     memcpy(&file_size, file_size_bytes, sizeof(file_size_bytes));
     
     //some local printing for debugging
-    printf("File size is: %d\n", file_size);
+    // printf("File size is: %d\n", file_size);
     
     //now start receiving file data
     size_t bytes_read = 0, total_bytes_read =0;;
@@ -133,7 +133,7 @@ char* compile_command(int id, char* programFile, char* execFile) {
  	sprintf(s1, "%d", id);	
  	strcat(s, s1);	
   strcat(s, ".txt");
-  printf("%s\n",s);
+//   printf("%s\n",s);
   return s;
 }
     
@@ -155,7 +155,7 @@ char* run_command(int id, char* execFileName) {
   strcat(s, " 2> runtime_err");
  	strcat(s, s1);	
  	strcat(s, ".txt");	
-  printf("%s\n",s);
+//   printf("%s\n",s);
   return s;
 }
 
