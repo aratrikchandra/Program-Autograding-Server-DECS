@@ -11,16 +11,10 @@ num_clients="$2"
 sleep_time="$3"
 
 # Function to simulate a client using throughput.sh
-simulate_client() {
-    local source_code="$1"
-    local sleep_time="$2"
-    
-    ./throughput.sh "$source_code" "$sleep_time" > "client_$3.log" 2>&1
-}
 
 # Run clients in parallel
 for ((i = 1; i <= num_clients; i++)); do
-    simulate_client "$source_code" "$sleep_time" "$i" &
+	./throughput.sh "$source_code" "$sleep_time" > "client_$i.log" &
 done
 
 # Wait for all background processes to finish

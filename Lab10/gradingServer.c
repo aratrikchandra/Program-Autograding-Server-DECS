@@ -23,7 +23,7 @@ struct node {
 };
 
 
-int gradingQueue[BUFFER_SIZE][2];
+int Queue[BUFFER_SIZE][2];
 int queueSize = 0;
 int queueFront = 0;
 int queueRear = 0;
@@ -33,10 +33,10 @@ pthread_cond_t queueNotEmpty = PTHREAD_COND_INITIALIZER;
 pthread_cond_t queueNotFull = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t fileLock = PTHREAD_MUTEX_INITIALIZER;
 
-int createNewRequest(int clientSockFD, int requestID);
+int generateNewRequest(int clientSockFD, int requestID);
 
 
-void enqueueGradingRequest(int newsockfd, int requestID)
+void enqueueRequest(int newsockfd, int requestID)
 {
     pthread_mutex_lock(&queueMutex);
     while (queueSize == BUFFER_SIZE)
@@ -44,15 +44,15 @@ void enqueueGradingRequest(int newsockfd, int requestID)
         // Queue is full, wait for space
         pthread_cond_wait(&queueNotFull, &queueMutex);
     }
-    gradingQueue[queueRear][0] = newsockfd;
-    gradingQueue[queueRear][1] = requestID;
+    Queue[queueRear][0] = newsockfd;
+    Queue[queueRear][1] = requestID;
     queueRear = (queueRear + 1) % BUFFER_SIZE;
     queueSize++;
     pthread_cond_signal(&queueNotEmpty);
     pthread_mutex_unlock(&queueMutex);
 }
 
-struct node dequeueGradingRequest()
+struct node dequeueRequest()
 {   struct node data;
     // sleep(10);
     srand(time(NULL));  // Seed the random number generator
@@ -65,8 +65,8 @@ struct node dequeueGradingRequest()
         // Queue is empty, wait for requests
         pthread_cond_wait(&queueNotEmpty, &queueMutex);
     }
-    data.sockfd = gradingQueue[queueFront][0];
-    data.requestID = gradingQueue[queueFront][1];
+    data.sockfd = Queue[queueFront][0];
+    data.requestID = Queue[queueFront][1];
     
     queueFront = (queueFront + 1) % BUFFER_SIZE;
     queueSize--;
@@ -80,7 +80,7 @@ int getQueuePos(int requestID){
     int pos = -1;
     for (int i = queueFront; i != queueRear+1; i = (i+1)%BUFFER_SIZE){
         pos++;
-        if ( gradingQueue[i][1] == requestID){
+        if ( Queue[i][1] == requestID){
             return pos;
         }
     }
@@ -269,7 +269,7 @@ int faultTolerance()
         status[strcspn(status, "\n")] = '\0';
         if ((strcmp(status, "0") == 0) || (strcmp(status, "1") == 0))
         {
-            enqueueGradingRequest(-1, requestID);
+            enqueueRequest(-1, requestID);
             printf("Request ID = %d, is Re-Added to Queue.\n", requestID);
         }
     }
@@ -336,12 +336,12 @@ void *handleClient(void *arg)
 {   
     while (1)
     {
-        struct node data = dequeueGradingRequest();
+        struct node data = dequeueRequest();
         int requestID = data.requestID;
         int sockfd = data.sockfd;
         if (sockfd != -1){
-            createNewRequest(sockfd, requestID);
-            enqueueGradingRequest(-1, requestID);
+            generateNewRequest(sockfd, requestID);
+            enqueueRequest(-1, requestID);
             continue;
         }
         
@@ -376,7 +376,7 @@ int generateUniqueRequestID()
     return requestID;
 }
 
-int createNewRequest(int clientSockFD, int requestID)
+int generateNewRequest(int clientSockFD, int requestID)
 {
     int n;
     char *programFileName = makeProgramFileName(requestID);
@@ -391,7 +391,7 @@ int createNewRequest(int clientSockFD, int requestID)
     if (n < 0)
         error("ERROR :: FILE SEND ERROR");
 
-    // enqueueGradingRequest(requestID, clientSockFD);
+    // enqueueRequest(requestID, clientSockFD);
     printf("Client with FD = %d is given Request ID = %d\n", clientSockFD, requestID);
 
     char requestIDString[30];
@@ -433,8 +433,9 @@ void *checkStatusRequest(void *arg)
     pthread_mutex_unlock(&fileLock);
     printf("The request ID is %d and status is: %s\n", requestID, status);
     if (status == NULL)
-    {
-        n = send(clientSockFD, "INVALID REQUEST ID", 18, MSG_NOSIGNAL);
+    {   char msg[200];
+        sprintf(msg, "Grading request %d not found. Please check and resend your request id", requestID);
+        n = send(clientSockFD, msg, strlen(msg), MSG_NOSIGNAL);
     }
     else
     {
@@ -445,6 +446,7 @@ void *checkStatusRequest(void *arg)
         {
             close(clientSockFD);
             error("ERROR: SEND ERROR");
+            //free((int *)arg);
         }
         printf("%s\n", status);
         if (strcmp(status, "2") == 0)
@@ -452,18 +454,21 @@ void *checkStatusRequest(void *arg)
             char *compileOutputFileName = makeCompileErrorFilename(requestID);
             n = send_file(clientSockFD, compileOutputFileName);
             free(compileOutputFileName);
+            //free((int *)arg);
         }
         else if (strcmp(status, "3") == 0)
         {
             char *runtimeOutputFileName = makeRuntimeErrorFilename(requestID);
             n = send_file(clientSockFD, runtimeOutputFileName);
             free(runtimeOutputFileName);
+            //free((int *)arg);
         }
         else if (strcmp(status, "4") == 0)
         {
             char *outputDiffFileName = makeOutputDiffFilename(requestID);
             n = send_file(clientSockFD, outputDiffFileName);
             free(outputDiffFileName);
+            //free((int *)arg);
         }
         else if (strcmp(status, "5") == 0)
         {
@@ -471,6 +476,7 @@ void *checkStatusRequest(void *arg)
             {
                 close(clientSockFD);
                 perror("Error sending file msg");
+              //  free((int *)arg);
                 return NULL;
             }
         }
@@ -479,10 +485,12 @@ void *checkStatusRequest(void *arg)
     {
         close(clientSockFD);
         error("ERROR: SEND ERROR");
+        //free((int *)arg);
     }
 
     printf("Status Returned for Client with FD = %d with Request ID = %d\n", clientSockFD, requestID);
     close(clientSockFD);
+    free((int *)arg);
     return NULL;
 }
 
@@ -501,10 +509,10 @@ int getRequest(int clientSockFD)
     {
         printf("\ngoing to create new request\n");
         // sleep(1);
-        // return createNewRequest(clientSockFD);
+        // return generateNewRequest(clientSockFD);
 
         int requestID = generateUniqueRequestID();
-        enqueueGradingRequest(clientSockFD, requestID);
+        enqueueRequest(clientSockFD, requestID);
         return 0;
     }
     else if (strcmp(buffer, "status") == 0)
@@ -513,7 +521,9 @@ int getRequest(int clientSockFD)
         pthread_t thread;
         printf("\nsfd: %d", clientSockFD);
         // sleep(1);
-        int rc = pthread_create(&thread, NULL, checkStatusRequest, (void *)&clientSockFD);
+        int* sockfd = (int*)malloc(sizeof(int));
+        *sockfd = clientSockFD;
+        int rc = pthread_create(&thread, NULL, checkStatusRequest, (void *)sockfd);
         assert(rc==0);
         pthread_detach(thread);
         return 0;

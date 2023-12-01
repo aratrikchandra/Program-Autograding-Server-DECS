@@ -9,10 +9,10 @@ fi
 source_code="$1"
 sleep_time="$2"
 
-gcc -o gradingclient gradingclient.c
+#gcc -o gradingclient gradingclient.c
 
 # Start the program and capture the response
-response=$(./gradingclient new localhost:8080 "$source_code")
+response=$(./gradingclient new localhost:8002 "$source_code")
 start_time=$(date +%s)
 
 # Extract the request ID from the response
@@ -29,7 +29,7 @@ echo "Request ID: $request_id"
 
 # Check the status until "Processing is Done" is received
 while true; do
-    status=$(./gradingclient status localhost:8080 "$request_id" | tr -d '\0')
+    status=$(./gradingclient status localhost:8002 "$request_id" | tr -d '\0')
 
     # Check if "Processing is Done" is received
     if echo "$status" | grep -q "Your grading request ID $request_id processing is done, here are the results"; then
