@@ -36,4 +36,4 @@ average_response_time=$(bc <<< "scale=2; $total_response_time / $num_clients")
 average_throughput=$(bc <<< "scale=2; $total_throughput / $num_clients")
 
 echo "Average Response Time: $average_response_time seconds"
-echo "Average Throughput: $average_throughput req/sec"
+echo "Average Throughput: $total_throughput req/sec"
