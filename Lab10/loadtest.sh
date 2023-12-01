@@ -1,20 +1,21 @@
 #!/bin/bash
 
 # Check if the correct number of arguments is provided
-if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <sourceCodeFileTobeGraded> <number_of_clients> <sleep_time_between_checks>"
+if [ "$#" -ne 4 ]; then
+    echo "Usage: $0 <sourceCodeFileTobeGraded> <serverIP:port> <number_of_clients> <sleep_time_between_checks>"
     exit 1
 fi
 
 source_code="$1"
-num_clients="$2"
-sleep_time="$3"
+num_clients="$3"
+sleep_time="$4"
+server_address="$2"
 
 # Function to simulate a client using throughput.sh
 
 # Run clients in parallel
 for ((i = 1; i <= num_clients; i++)); do
-	./throughput.sh "$source_code" "$sleep_time" > "client_$i.log" &
+	./throughput.sh "$source_code" "$server_address" "$sleep_time" > "client_$i.log" &
 done
 
 # Wait for all background processes to finish
@@ -36,4 +37,4 @@ average_response_time=$(bc <<< "scale=2; $total_response_time / $num_clients")
 average_throughput=$(bc <<< "scale=2; $total_throughput / $num_clients")
 
 echo "Average Response Time: $average_response_time seconds"
-echo "Average Throughput: $total_throughput req/sec"
+echo "Overall Throughput: $total_throughput req/sec"

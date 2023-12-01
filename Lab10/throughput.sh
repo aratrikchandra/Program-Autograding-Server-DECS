@@ -1,18 +1,19 @@
 #!/bin/bash
 
 # Check if the correct number of arguments is provided
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <sourceCodeFileTobeGraded> <sleepTimeBeforeStatusCheck>"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 <sourceCodeFileTobeGraded> <IPAddress:port> <sleepTimeBeforeStatusCheck>"
     exit 1
 fi
 
 source_code="$1"
-sleep_time="$2"
+server_address="$2"
+sleep_time="$3"
 
 #gcc -o gradingclient gradingclient.c
 
 # Start the program and capture the response
-response=$(./gradingclient new localhost:8002 "$source_code")
+response=$(./gradingclient new "$server_address" "$source_code")
 start_time=$(date +%s)
 
 # Extract the request ID from the response
@@ -29,7 +30,7 @@ echo "Request ID: $request_id"
 
 # Check the status until "Processing is Done" is received
 while true; do
-    status=$(./gradingclient status localhost:8002 "$request_id" | tr -d '\0')
+    status=$(./gradingclient status "$server_address" "$request_id" | tr -d '\0')
 
     # Check if "Processing is Done" is received
     if echo "$status" | grep -q "Your grading request ID $request_id processing is done, here are the results"; then
