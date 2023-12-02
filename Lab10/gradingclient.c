@@ -44,7 +44,6 @@ int send_file(int sockfd, char *file_path)
     // for finding file size in bytes
     fseek(file, 0L, SEEK_END);
     int file_size = ftell(file);
-    // printf("File size is: %d\n", file_size);
 
     // Reset file descriptor to beginning of file
     fseek(file, 0L, SEEK_SET);
@@ -105,7 +104,6 @@ void *workerThread(void *arguments)
     // Typecast the void pointer back to the original struct type
     struct ThreadArgs *args = (struct ThreadArgs *)arguments;
     // Access the individual arguments within the struct
-    // printf("Thread function with arguments: %d, %s, %.2f\n", args->arg1, args->arg2);
 
     char *req_mode = args->arg1;
 
@@ -182,7 +180,6 @@ void *workerThread(void *arguments)
 int main(int argc, char *argv[])
 {
     int portno, n;
-    // struct sockaddr_in serv_addr;
     struct hostent *server;
 
     if (argc < 4)
