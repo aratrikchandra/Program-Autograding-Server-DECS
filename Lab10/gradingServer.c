@@ -10,7 +10,6 @@
 #include <pthread.h>
 #include "helper.h"
 #include <time.h>
-// #include "helper/circular_queue.h"
 
 #define MAX_CLIENTS 100
 #define BUFFER_SIZE 1000
@@ -54,7 +53,6 @@ void enqueueRequest(int newsockfd, int requestID)
 
 struct node dequeueRequest()
 {   struct node data;
-    // sleep(10);
     srand(time(NULL));  // Seed the random number generator
     unsigned int microseconds = rand() % 1000000;  // Generate a random number between 0 and 999999
     usleep(microseconds);
@@ -101,7 +99,6 @@ void *countQueueSize(void *arg)
         int size = queueSize;
         fprintf(outputFile, "%d\n", size);
         fflush(outputFile); // Flush the file buffer to ensure data is written immediately
-        // sleep(1);           // Sleep for 10 seconds
     }
 }
 
@@ -144,9 +141,7 @@ int updateStatusToFile(int requestID, char *newStatus)
     int requestFound = 0;
     while (fgets(line, sizeof(line), file) != NULL)
     {
-        // printf("%s\n", line);
         char *token = strtok(line, ",");
-        // printf("%s\n", token);
         char s1[11];
         sprintf(s1, "%d", requestID);
         if (token != NULL && strcmp(token, s1) == 0)
@@ -249,7 +244,7 @@ char *readRemarksFromFile(char *statusID, int reqID)
 
 int faultTolerance()
 {
-    printf("RUNNING FAULT TOLERANCE ::\n");
+    printf("---------------- FETCHING PREVIOUS STATE -----------------\n");
     // Open the file in read mode
     FILE *file = fopen("request_status.csv", "r");
 
@@ -259,13 +254,10 @@ int faultTolerance()
     }
     // Search for the request ID in the file
     char line[256]; // Adjust the size as needed
-    printf("\n\nQueue State:\n");
     while (fgets(line, sizeof(line), file) != NULL)
     {
-        printf("\nQueue content: %s", line);
         int requestID = atoi(strtok(line, ","));
         char *status = strtok(NULL, ",");
-        // printf("%d :: %s\n", requestID, status);
         status[strcspn(status, "\n")] = '\0';
         if ((strcmp(status, "0") == 0) || (strcmp(status, "1") == 0))
         {
@@ -273,7 +265,7 @@ int faultTolerance()
             printf("Request ID = %d, is Re-Added to Queue.\n", requestID);
         }
     }
-    printf("FAULT TOLERANCE DONE\n");
+    printf("------------- STATE OF THE SERVER MAINTAINED -----------\n");
     return 0;
 }
 
@@ -345,14 +337,14 @@ void *handleClient(void *arg)
             continue;
         }
         
-        printf("Request ID = %d is assigned a Thread\n", requestID);
+        printf("File with Request ID = %d is now neing graded.\n", requestID);
 
         pthread_mutex_lock(&fileLock);
         updateStatusToFile(requestID, "1");
         pthread_mutex_unlock(&fileLock);
 
         if (grader(requestID) == 0)
-            printf("\nSUCCESS :: File Graded for Request ID = %d\n", requestID);
+            printf("\nFile Grading Successful for Request ID = %d\n", requestID);
         else
             printf("ERROR :: File Cannot Be Graded for Request ID = %d\n", requestID);
     }
@@ -391,7 +383,6 @@ int generateNewRequest(int clientSockFD, int requestID)
     if (n < 0)
         error("ERROR :: FILE SEND ERROR");
 
-    // enqueueRequest(requestID, clientSockFD);
     printf("Client with FD = %d is given Request ID = %d\n", clientSockFD, requestID);
 
     char requestIDString[30];
@@ -417,12 +408,10 @@ int generateNewRequest(int clientSockFD, int requestID)
 void *checkStatusRequest(void *arg)
 {
     int clientSockFD= *((int *)arg);
-    // printf("\n in chk status, client sfd: %d", clientSockFD);
     int n;
     int requestID;
-    // sleep(1);
     n = recv(clientSockFD, &requestID, sizeof(requestID), 0);
-    printf("Request id is %d\n", requestID);
+    printf("Status required for Request id %d\n", requestID);
     if (n < 0)
     {   
         close(clientSockFD);
@@ -431,7 +420,6 @@ void *checkStatusRequest(void *arg)
     pthread_mutex_lock(&fileLock);
     char *status = readStatusFromFile(requestID);
     pthread_mutex_unlock(&fileLock);
-    printf("The request ID is %d and status is: %s\n", requestID, status);
     if (status == NULL)
     {   char msg[200];
         sprintf(msg, "Grading request %d not found. Please check and resend your request id", requestID);
@@ -446,7 +434,6 @@ void *checkStatusRequest(void *arg)
         {
             close(clientSockFD);
             error("ERROR: SEND ERROR");
-            //free((int *)arg);
         }
         printf("%s\n", status);
         if (strcmp(status, "2") == 0)
@@ -454,21 +441,18 @@ void *checkStatusRequest(void *arg)
             char *compileOutputFileName = makeCompileErrorFilename(requestID);
             n = send_file(clientSockFD, compileOutputFileName);
             free(compileOutputFileName);
-            //free((int *)arg);
         }
         else if (strcmp(status, "3") == 0)
         {
             char *runtimeOutputFileName = makeRuntimeErrorFilename(requestID);
             n = send_file(clientSockFD, runtimeOutputFileName);
             free(runtimeOutputFileName);
-            //free((int *)arg);
         }
         else if (strcmp(status, "4") == 0)
         {
             char *outputDiffFileName = makeOutputDiffFilename(requestID);
             n = send_file(clientSockFD, outputDiffFileName);
             free(outputDiffFileName);
-            //free((int *)arg);
         }
         else if (strcmp(status, "5") == 0)
         {
@@ -476,7 +460,6 @@ void *checkStatusRequest(void *arg)
             {
                 close(clientSockFD);
                 perror("Error sending file msg");
-              //  free((int *)arg);
                 return NULL;
             }
         }
@@ -485,10 +468,7 @@ void *checkStatusRequest(void *arg)
     {
         close(clientSockFD);
         error("ERROR: SEND ERROR");
-        //free((int *)arg);
     }
-
-    printf("Status Returned for Client with FD = %d with Request ID = %d\n", clientSockFD, requestID);
     close(clientSockFD);
     free((int *)arg);
     return NULL;
@@ -500,27 +480,19 @@ int getRequest(int clientSockFD)
     bzero(buffer, BUFFER_SIZE);
     // new or status_check
     int n = recv(clientSockFD, buffer, BUFFER_SIZE, 0);
-    printf("\ngetrequest n: %d\n", n);
     if (n <= 0){
         printf("\n\nrecv nothing, but conn accepted");
         return -1;
     }
     if (strcmp(buffer, "new") == 0)
     {
-        printf("\ngoing to create new request\n");
-        // sleep(1);
-        // return generateNewRequest(clientSockFD);
-
         int requestID = generateUniqueRequestID();
         enqueueRequest(clientSockFD, requestID);
         return 0;
     }
     else if (strcmp(buffer, "status") == 0)
     {
-        printf("going to fetch requestID\n");
         pthread_t thread;
-        printf("\nsfd: %d", clientSockFD);
-        // sleep(1);
         int* sockfd = (int*)malloc(sizeof(int));
         *sockfd = clientSockFD;
         int rc = pthread_create(&thread, NULL, checkStatusRequest, (void *)sockfd);
@@ -562,16 +534,8 @@ int main(int argc, char *argv[])
     // Get address size
     int clientAddrLen = sizeof(clientAddr);
 
-    // Thread to count queue size
-    // pthread_t queueCountThread;
-    // pthread_create(&queueCountThread, NULL, countQueueSize, NULL);
-
     int threadPoolSize = atoi(argv[2]);
     pthread_t threads[threadPoolSize];
-
-    // Initialize Request Queue
-    // int requestQueueSize = atoi(argv[3]);
-    // initQueue(&requestQueue, requestQueueSize);
     
     system("touch request_status.csv");
 
@@ -613,7 +577,7 @@ int main(int argc, char *argv[])
             printf("ERROR :: Client Socket Accept Failed");
         }
 
-        printf("Accepted Client Connection From %s with FD = %d\n", inet_ntoa(clientAddr.sin_addr), clientSockFD);
+        printf("Client From %s Accepted.\n", inet_ntoa(clientAddr.sin_addr));
 
         getRequest(clientSockFD);
         // sleep(1);
